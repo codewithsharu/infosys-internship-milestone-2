@@ -7,6 +7,9 @@ import time
 import pandas as pd
 import csv
 import os
+import evaluate
+from transformers import AutoTokenizer, AutoModelForCausalLM, MarianMTModel, MarianTokenizer
+import torch
 
 # -----------------------------
 # Page Configuration & Custom CSS
@@ -18,6 +21,53 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Load GPT-2 model and tokenizer for perplexity calculation
+@st.cache_resource
+def get_perplexity_model():
+    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    model = AutoModelForCausalLM.from_pretrained("gpt2")
+    return tokenizer, model
+
+perplexity_tokenizer, perplexity_model = get_perplexity_model()
+
+@st.cache_resource
+def get_translation_models():
+    translation_resources = {}
+    
+    translation_resources["French"] = {
+        "tokenizer": MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-fr"),
+        "model": MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-fr")
+    }
+    
+    translation_resources["Hindi"] = {
+        "tokenizer": MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-hi"),
+        "model": MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-hi")
+    }
+
+    translation_resources["Telugu"] = {
+        "tokenizer": MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-ine"),
+        "model": MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-ine")
+    }
+
+    translation_resources["Spanish"] = {
+        "tokenizer": MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-es"),
+        "model": MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-es")
+    }
+
+    translation_resources["German"] = {
+        "tokenizer": MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-de"),
+        "model": MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-de")
+    }
+
+    translation_resources["Italian"] = {
+        "tokenizer": MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-it"),
+        "model": MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-it")
+    }
+    
+    return translation_resources
+
+translation_models = get_translation_models()
+
 # Custom CSS for elegant black and white theme
 st.markdown("""
 <style>
@@ -25,38 +75,39 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
     
     /* Global styles */
-    .main {
-        background: #000000;
-        color: #ffffff;
-        min-height: 100vh;
-    }
+    /* Removed specific Streamlit container styles to rely on Streamlit defaults for top spacing */
     
-    .stApp {
-        background: #000000;
-        color: #ffffff;
-    }
+    /* .main { */
+    /*     background: #000000; */
+    /*     color: #ffffff; */
+    /*     min-height: 100vh; */
+    /* } */
     
-    /* Remove default Streamlit styling */
-    .stApp > header {
-        background: transparent;
-    }
+    /* .stApp { */
+    /*     background: #000000; */
+    /*     color: #ffffff; */
+    /* } */
     
-    .stApp > div > div > div > div > section {
-        background: #000000;
-    }
+    /* .stApp > header { */
+    /*     background: transparent; */
+    /* } */
+    
+    /* .stApp > div > div > div > div > section { */
+    /*     background: #000000; */
+    /* } */
     
     /* Main container styling */
     .main-container {
         max-width: 1200px;
         margin: 0 auto;
-        padding: 2rem 1rem;
+        padding: 2rem 1rem; /* Aligned with summarizer.py */
     }
     
     /* Header styling */
     .header {
         text-align: center;
-        margin-bottom: 3rem;
-        padding: 2rem 0;
+        margin-bottom: 3rem; /* Aligned with summarizer.py */
+        padding: 2rem 0; /* Aligned with summarizer.py */
         border-bottom: 1px solid #e0e0e0;
     }
     
@@ -75,16 +126,16 @@ st.markdown("""
 
     /* Column styling */
     .column-header {
-        background: #111111;
+        background: #f8f9fa; /* Changed to white background */
         padding: 1rem;
         border-radius: 8px;
         text-align: center;
         margin-bottom: 1rem;
-        border: 1px solid #333333;
+        border: 1px solid #e9ecef; /* Changed border color */
     }
     
     .column-header h3 {
-        color: #ffffff;
+        color: #495057; /* Changed text color to dark grey */
         margin: 0;
         font-size: 1.2rem;
         font-weight: 500;
@@ -92,31 +143,31 @@ st.markdown("""
 
     /* Content boxes */
     .content-box {
-        background: #111111;
-        border: 1px solid #333333;
+        background: #000000; /* Changed to black background */
+        border: 2px dashed #ffffff; /* Vibrant white dashed border */
         border-radius: 8px;
         padding: 1.5rem;
-        height: 400px;
+        height: 400px; /* Ensure consistent height */
         overflow-y: auto;
-        color: #e0e0e0;
+        color: #ffffff; /* White text for contrast */
         font-family: 'Inter', sans-serif;
     }
     
     .placeholder-box {
-        background: #111111;
-        border: 2px dashed #333333;
+        background: #000000; /* Changed to black background */
+        border: 2px dashed #ffffff; /* Vibrant white dashed border */
         border-radius: 8px;
         padding: 2rem;
-        height: 400px;
+        height: 400px; /* Ensure consistent height */
         display: flex;
         align-items: center;
         justify-content: center;
         text-align: center;
-        color: #cccccc;
+        color: #ffffff; /* White text for contrast */
     }
     
     .placeholder-content {
-        color: #cccccc;
+        color: #ffffff; /* White text for contrast */
     }
     
     /* Controls styling */
@@ -190,13 +241,15 @@ st.markdown("""
     
     /* Text areas */
     .stTextArea > div > div > textarea {
-        background: #111111;
-        border: 1px solid #333333;
-        border-radius: 12px;
+        background: #000000; /* Changed to black background */
+        border: 2px dashed #ffffff; /* Vibrant white dashed border */
+        border-radius: 8px;
         color: #ffffff;
         font-family: 'JetBrains Mono', monospace;
         font-size: 0.95rem;
         line-height: 1.6;
+        height: 300px; /* Set height to match other boxes */
+        padding: 1.5rem; /* Added padding to match content-box */
     }
     
     .stTextArea > div > div > textarea:focus {
@@ -261,6 +314,39 @@ def get_text_stats(text):
     characters = len(text)
     return len(words), sentences, characters
 
+@st.cache_data
+def calculate_bleu(reference, candidate):
+    """Calculate BLEU score using HuggingFace evaluate library"""
+    if not reference or not candidate:
+        return 0.0
+    bleu = evaluate.load("bleu")
+    results = bleu.compute(predictions=[candidate], references=[[reference]])
+    return round(results["bleu"] * 100, 2)
+
+@st.cache_data
+def calculate_perplexity(text):
+    """Calculate GPT-2 perplexity score"""
+    if not text.strip():
+        return 0.0
+    
+    try:
+        encodings = perplexity_tokenizer(text, return_tensors='pt')
+        seq_len = encodings.input_ids.size(1)
+        
+        if seq_len == 0:
+            return 0.0
+            
+        with torch.no_grad():
+            outputs = perplexity_model(encodings.input_ids, labels=encodings.input_ids)
+            loss = outputs.loss
+            perplexity = torch.exp(loss).item()
+            
+        return round(perplexity, 2)
+    except RuntimeError as e:
+        return 0.0
+    except Exception as e:
+        return 0.0
+
 def find_reference_paraphrase(input_text, csv_path='pages/paraphrase.csv'):
     """
     Search for the input_text in the paraphrase.csv file.
@@ -286,6 +372,30 @@ def find_reference_paraphrase(input_text, csv_path='pages/paraphrase.csv'):
         return None
     return None
 
+@st.cache_data
+def calculate_readability_scores(text):
+    """Calculate Flesch-Kincaid Grade Level"""
+    if not text.strip():
+        return 0.0
+    try:
+        return round(textstat.flesch_kincaid_grade(text), 2)
+    except Exception as e:
+        return 0.0
+
+def translate_text(text, target_language="French"):
+    if not text.strip():
+        return ""
+    try:
+        # Get tokenizer and model for the target language
+        tokenizer = translation_models[target_language]["tokenizer"]
+        model = translation_models[target_language]["model"]
+        
+        translated_tokens = model.generate(**tokenizer(text, return_tensors="pt"))
+        translated_text = tokenizer.decode(translated_tokens[0], skip_special_tokens=True)
+        return translated_text
+    except Exception as e:
+        return f"Translation error: {e}"
+
 # -----------------------------
 # AI Loading Component
 # -----------------------------
@@ -306,30 +416,32 @@ def show_ai_loader(text="Processing with AI"):
 # -----------------------------
 def main():
     # Header
-    st.markdown("""
-    <div class="header">
-        <h1>🖤 AI Paraphrasing Studio</h1>
-        <p>Transform your text with precision AI technology and comprehensive readability analysis</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # st.markdown("""
+    # <div class="header">
+    #     <h1>🖤 AI Paraphrasing Studio</h1>
+    #     <p>Transform your text with precision AI technology and comprehensive readability analysis</p>
+    # </div>
+    # """, unsafe_allow_html=True)
 
     # Initialize session state for loading
     if 'model_loaded' not in st.session_state:
         st.session_state.model_loaded = False
     if 'selected_model' not in st.session_state:
-        st.session_state.selected_model = "Vamsi/T5_Paraphrase_Paws" # Default model
+        st.session_state.selected_model = "Vamsi/T5_Paraphrase_Paws" # Default model (actual model ID)
+    if 'paraphrased_output_for_translation' not in st.session_state:
+        st.session_state.paraphrased_output_for_translation = ""
+    if 'selected_translation_language' not in st.session_state:
+        st.session_state.selected_translation_language = "Hindi" # Default translation language changed to Hindi
 
-    # Check if the selected model has changed
-    if st.session_state.get("model_selector") and st.session_state.selected_model != st.session_state.model_selector:
-        st.session_state.model_loaded = False
-        st.session_state.selected_model = st.session_state.model_selector
-        st.rerun()
+    # Removed the initial block that checked for model_selector change, as it was interfering
+    # with the model name mapping. The model change logic is now handled after the selectbox.
 
     # Load model with loading screen
     if not st.session_state.model_loaded:
         st.markdown(show_ai_loader("Initializing AI Models"), unsafe_allow_html=True)
-        selected_model = st.session_state.selected_model # Get the selected model from the selectbox
-        paraphraser = load_paraphraser(selected_model)
+        # Ensure we load the actual model ID, not the display name
+        model_to_load = st.session_state.selected_model 
+        paraphraser = load_paraphraser(model_to_load)
         st.session_state.paraphraser = paraphraser
         st.session_state.model_loaded = True
         time.sleep(1)
@@ -337,37 +449,53 @@ def main():
     
     paraphraser = st.session_state.paraphraser
 
-    # Controls Section
-    st.markdown("""
-    <div class="controls-section">
-        <div class="controls-title">Configuration Settings</div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Model name mapping for user-friendly display
+    model_display_names = {
+        "Vamsi/T5_Paraphrase_Paws": "T5 Paraphrase ",
+        "tuner007/pegasus_paraphrase": "Pegasus Paraphrase",
+        "MBZUAI/LaMini-Flan-T5-248M": "LaMini Flan T5"
+    }
+    
+    # Reverse mapping for actual model loading
+    display_to_model_names = {v: k for k, v in model_display_names.items()}
+
+    # # Controls Section
+    # st.markdown("""
+    # <div class="controls-section">
+    #     <div class="controls-title">Configuration Settings</div>
+    # </div>
+    # """, unsafe_allow_html=True)
     
     # Model and parameter controls in a single row
     control_col1, control_col2 = st.columns([3, 1])
     
     with control_col1:
-        selected_model = st.selectbox(
+        # Get the currently selected model's display name based on the actual model ID in session state
+        current_model_display_name = model_display_names.get(st.session_state.selected_model, "T5 Paraphrase ")
+
+        selected_model_display_name = st.selectbox(
             "Select AI Model",
-            ["Vamsi/T5_Paraphrase_Paws", "tuner007/pegasus_paraphrase", "MBZUAI/LaMini-Flan-T5-248M"],
-            index=["Vamsi/T5_Paraphrase_Paws", "tuner007/pegasus_paraphrase", "MBZUAI/LaMini-Flan-T5-248M"].index(st.session_state.selected_model),
+            list(model_display_names.values()),
+            index=list(model_display_names.values()).index(current_model_display_name),
             help="Choose the AI model for paraphrasing",
             key="model_selector"
         )
-    st.session_state.selected_model = selected_model
+    
+    # Update the actual selected_model in session state based on the display name
+    actual_selected_model = display_to_model_names.get(selected_model_display_name, "Vamsi/T5_Paraphrase_Paws")
+    # Check if the actual model ID has changed, then trigger reload
+    if st.session_state.selected_model != actual_selected_model:
+        st.session_state.model_loaded = False
+        st.session_state.selected_model = actual_selected_model # Store the actual model ID
+        st.rerun()
 
-    with control_col2:
-        generate_button = st.button(
-            "🚀 Generate Paraphrase",
-            type="primary",
-            use_container_width=True
-        )
+    # The generate button is placed in the input_col below.
+    # The previous code in control_col2 for generate_button is commented out as it was a duplicate.
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Main three-column layout
-    input_col, paraphrase_col, reference_col = st.columns([1, 1, 1])
+    # Main four-column layout
+    input_col, paraphrase_col, reference_col, translate_col = st.columns([1, 1, 1, 1])
     
     # Input Column
     with input_col:
@@ -392,6 +520,13 @@ Examples:
             key="user_text_input"
         )
         
+        # This is the correct placement for the generate button
+        generate_button = st.button(
+            "🚀 Generate Paraphrase",
+            type="primary",
+            use_container_width=True
+        )
+
         # Display text statistics if there's input
         if user_text:
             word_count, sentence_count, char_count = get_text_stats(user_text)
@@ -421,7 +556,7 @@ Examples:
             
             # Processing parameters
             # Dynamically set max_len based on input length, ensuring it's at least 150 and at most 750
-            max_len = min(750, max(150, int(len(user_text.split()) * 2.68)))
+            max_len = min(750, max(60, int(len(user_text.split()) * 4.0))) # Increased multiplier to 4.0 and min cap to 60
             num_return = 1  # Default number of return sequences
 
             # Generate paraphrased versions
@@ -433,7 +568,7 @@ Examples:
                     user_text, # Pass user_text directly without style modification
                     max_length=max_len,
                     num_return_sequences=num_return,
-                    min_length=max(10, int(len(user_text.split()) * 1.4)), # Ensure at least 40% more than input, min 10 words
+                    min_length=max(40, int(len(user_text.split()) * 4.0)), # Increased multiplier to 4.0 and min cap to 40
                     do_sample=True, # Enable sampling for more diverse paraphrases
                     temperature=1.5 # Adjust for creativity
                 )
@@ -464,6 +599,30 @@ Examples:
                     </div>
                     """, unsafe_allow_html=True)
                     
+                    # Calculate scores
+                    bleu_score = calculate_bleu(user_text, paraphrased_output)
+                    perplexity_score = calculate_perplexity(paraphrased_output)
+                    original_readability = calculate_readability_scores(user_text)
+                    paraphrase_readability = calculate_readability_scores(paraphrased_output)
+                    readability_delta = round(original_readability - paraphrase_readability, 2)
+
+                    st.markdown(f"""
+                    <div style="margin-top: 1rem; padding: 1rem; background: #111111; border-radius: 6px; border-left: 4px solid #90EE90;">
+                        <small style="color: #cccccc;">
+                            <strong>Paraphrase:</strong> {para_word_count} words • {para_sentence_count} sentences
+                        </small>
+                    </div>
+                    <div class="score-box">
+                        <small><strong>BLEU Score:</strong> {bleu_score}</small>
+                    </div>
+                    <div class="score-box">
+                        <small><strong>Perplexity:</strong> {perplexity_score}</small>
+                    </div>
+                    <div class="score-box">
+                        <small><strong>Readability Delta:</strong> {readability_delta} (Original: {original_readability}, Paraphrase: {paraphrase_readability})</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
                     # Download button
                     st.download_button(
                         "📥 Download Paraphrase",
@@ -472,10 +631,18 @@ Examples:
                         mime="text/plain",
                         use_container_width=True
                     )
+
+                # Store generated data in session state for score analysis
+                if paraphrased_output:
+                    st.session_state['generated_paraphrase_for_scores'] = paraphrased_output
+                    st.session_state['original_text_for_scores'] = user_text
+                    st.session_state['paraphrased_output_for_translation'] = paraphrased_output # Ensure this is always set
             
             except Exception as e:
                 loader_placeholder.empty()
                 st.error(f"⚠️ Processing error: {str(e)}")
+                # Ensure session state is cleared or updated if an error occurs
+                st.session_state['paraphrased_output_for_translation'] = ""
                 
         elif generate_button and not user_text.strip():
             st.error("⚠️ Please enter text to paraphrase.")
@@ -519,6 +686,25 @@ Examples:
                 <p style="line-height: 1.4; margin: 0; color: #ffffff;">{reference_paraphrase}</p>
             </div>
             """, unsafe_allow_html=True)
+
+            # Calculate scores for reference paraphrase
+            ref_bleu_score = calculate_bleu(reference_text, reference_paraphrase)
+            ref_perplexity_score = calculate_perplexity(reference_paraphrase)
+            ref_original_readability = calculate_readability_scores(reference_text)
+            ref_paraphrase_readability = calculate_readability_scores(reference_paraphrase)
+            ref_readability_delta = round(ref_original_readability - ref_paraphrase_readability, 2)
+
+            st.markdown(f"""
+            <div class="score-box reference">
+                <small><strong>BLEU Score (Reference):</strong> {ref_bleu_score}</small>
+            </div>
+            <div class="score-box reference">
+                <small><strong>Perplexity (Reference):</strong> {ref_perplexity_score}</small>
+            </div>
+            <div class="score-box reference">
+                <small><strong>Readability Delta (Reference):</strong> {ref_readability_delta} (Original: {ref_original_readability}, Paraphrase: {ref_paraphrase_readability})</small>
+            </div>
+            """, unsafe_allow_html=True)
         else:
             st.markdown("""
                 <div class="placeholder-box">
@@ -534,6 +720,82 @@ Examples:
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+
+    with translate_col:
+        st.markdown("""
+        <div class="column-header">
+            <h3>🌐 Translated Paraphrase</h3>
+        </div>
+        """, unsafe_allow_html=True)
+
+        translated_text_placeholder = st.empty()
+
+        # Initialize session state for translated paraphrase if not present
+        if 'translated_paraphrase_display' not in st.session_state:
+            st.session_state['translated_paraphrase_display'] = ""
+
+        if st.session_state['paraphrased_output_for_translation']:
+            target_language = st.selectbox(
+                "Target Language",
+                list(translation_models.keys()),
+                index=list(translation_models.keys()).index(st.session_state.get('selected_translation_language', "Hindi")) if 'selected_translation_language' in st.session_state else list(translation_models.keys()).index("Hindi"),
+                key="translation_language_selector_bottom"
+            )
+        else:
+            target_language = st.selectbox(
+                "Target Language",
+                list(translation_models.keys()),
+                index=list(translation_models.keys()).index("Hindi"),
+                key="translation_language_selector_disabled_bottom",
+                disabled=True
+            )
+
+        translate_button = st.button(
+            "🌍 Translate Paraphrase",
+            type="secondary",
+            use_container_width=True,
+            key="translate_button_final_bottom"
+        )
+
+
+        if translate_button:
+            if st.session_state.get("paraphrased_output_for_translation"):
+                with st.spinner(f"Translating to {target_language}..."):
+                    try:
+                        paraphrase_to_translate = st.session_state.get("paraphrased_output_for_translation")
+                        translated_paraphrase = translate_text(paraphrase_to_translate, target_language)
+                        st.session_state['translated_paraphrase_display'] = translated_paraphrase
+                        st.session_state['selected_translation_language'] = target_language # Store selected language
+                    except Exception as e:
+                        st.error(f"⚠️ Translation error: {str(e)}")
+                        if 'translated_paraphrase_display' not in st.session_state:
+                            st.session_state['translated_paraphrase_display'] = ""
+            else:
+                st.error("⚠️ Please generate a paraphrase first before translating.")
+                st.session_state['translated_paraphrase_display'] = ""
+        
+        # Always display the content from session state
+        if st.session_state['translated_paraphrase_display']:
+            translated_text_placeholder.markdown(f"""
+            <div class="content-box">
+                <p style="line-height: 1.6; margin: 0;">{st.session_state['translated_paraphrase_display']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            # Placeholder when no translation is generated or after clearing
+            translated_text_placeholder.markdown("""
+                <div class="placeholder-box">
+                    <div class="placeholder-content">
+                        <h4 style="color: #666666; margin-bottom: 1rem;">Translate Your Paraphrase</h4>
+                        <p style="margin-bottom: 1rem;">Select a language and click translate</p>
+                        <p style="font-size: 0.9em; margin: 0;">
+                            ⚙️ Multiple Languages<br>
+                            🚀 Fast Translation<br>
+                            💡 AI-Powered
+                        </p>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
     
     # Footer
     st.markdown("""
@@ -542,5 +804,6 @@ Examples:
         <p><em>Professional text paraphrasing for research, business, and academic use</em></p>
     </div>
     """, unsafe_allow_html=True)
+
 if __name__ == "__main__":
     main()
