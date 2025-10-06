@@ -509,6 +509,19 @@ The AI will analyze your content and create a concise summary.""",
                 </small>
             </div>
             """, unsafe_allow_html=True)
+            
+            # Calculate and display metrics for the input text
+            input_perplexity = calculate_perplexity(text_input)
+            input_readability = calculate_readability_scores(text_input)
+
+            st.markdown(f"""
+            <div class="score-box">
+                <span class="score-icon">🧠</span> <small><strong>Perplexity (Input):</strong> {input_perplexity}</small>
+            </div>
+            <div class="score-box">
+                <span class="score-icon">🧠</span> <small><strong>Readability (Input):</strong> {input_readability}</small>
+            </div>
+            """, unsafe_allow_html=True)
     
     # Summary Column
     with summary_col:

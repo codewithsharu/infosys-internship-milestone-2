@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CSV Viewer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f7f7f7;
+    }
+    .container {
+      max-width: 90%;
+      margin: 32px auto;
+      background: #fff;
+      padding: 24px 32px 32px 32px;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 24px;
+      color: #333;
+    }
+    label {
+      font-size: 1.1rem;
+      color: #555;
+      margin-right: 10px;
+    }
+    select {
+      font-size: 1rem;
+      padding: 8px 12px;
+      margin-bottom: 24px;
+      border-radius: 6px;
+      border: 1px solid #c0c0c0;
+      background-color: #f8f8f8;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+      appearance: none; /* Remove default arrow */
+      background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23007bff%22%20d%3D%22M287%2C114.7L159.2%2C242.5c-4.5%2C4.5-10.6%2C6.8-16.8%2C6.8s-12.3-2.3-16.8-6.8L5.4%2C114.7c-9-9-9-23.5%2C0-32.5s23.5-9%2C32.5%2C0l118%2C118l118-118c9-9%2C23.5-9%2C32.5%2C0S296%2C105.7%2C287%2C114.7z%22%2F%3E%3C%2Fsvg%3E');
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      background-size: 12px;
+      padding-right: 30px; /* Space for the custom arrow */
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16px;
+      background: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+    }
+    th, td {
+      border: 1px solid #e9ecef;
+      padding: 12px 15px;
+      text-align: left;
+      line-height: 1.5;
+      color: #343a40;
+    }
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #495057;
+      text-transform: uppercase;
+      font-size: 0.9rem;
+    }
+    tr:hover {
+      background: #f1f7fe;
+    }
+    .copy-btn {
+      background: #007bff;
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      margin-left: 10px;
+      transition: background 0.3s ease, transform 0.1s ease;
+      flex-shrink: 0;
+    }
+    .copy-btn:hover {
+      background: #0056b3;
+      transform: translateY(-1px);
+    }
+    .copy-btn:active {
+      background: #004085;
+      transform: translateY(0);
+    }
+    .copied {
+      color: #28a745;
+      font-size: 0.8rem;
+      margin-left: 10px;
+      font-weight: bold;
+    }
+    .table-container {
+      overflow-x: auto;
+    }
+    .cell-content-wrapper {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1> Dataset Viewer</h1>
+    <label for="csv-select"><strong>Select Dataset:</strong></label>
+    <select id="csv-select">
+      <option value="paraphrase.csv">paraphrase.csv</option>
+      <option value="summary.csv">summary.csv</option>
+    </select>
+    <div class="table-container" id="table-container">
+      <!-- Table will be rendered here -->
+    </div>
+  </div>
+  <script>
+    // CSV file paths (assumed to be in 'pages/' directory)
+    const csvFiles = {
+      "paraphrase.csv": "pages/paraphrase.csv",
+      "summary.csv": "pages/summary.csv"
+    };
+
+    // Helper: Parse CSV (handles quoted fields, commas, newlines)
+    function parseCSV(text) {
+      const rows = [];
+      let row = [];
+      let field = '';
+      let inQuotes = false;
+      let i = 0;
+      while (i < text.length) {
+        const char = text[i];
+        if (inQuotes) {
+          if (char === '"') {
+            if (text[i+1] === '"') {
+              field += '"';
+              i++;
+            } else {
+              inQuotes = false;
+            }
+          } else {
+            field += char;
+          }
+        } else {
+          if (char === '"') {
+            inQuotes = true;
+          } else if (char === ',') {
+            if (row.length < 2) {
+              row.push(field);
+              field = '';
+            } else {
+              field += char; // Append to the second column if it already exists
+            }
+          } else if (char === '\r') {
+            // ignore
+          } else if (char === '\n') {
+            // Finalize the current row
+            if (field.length > 0 || row.length > 0) {
+              if (row.length < 2) {
+                row.push(field);
+              }
+              // Ensure exactly two columns
+              while (row.length < 2) {
+                row.push('');
+              }
+              if (row.length > 2) {
+                row[1] = row.slice(1).join(','); // Merge extra columns into the second
+                row = row.slice(0, 2);
+              }
+              rows.push(row);
+            }
+            row = [];
+            field = '';
+          } else {
+            field += char;
+          }
+        }
+        i++;
+      }
+      // Add last field/row if not empty after loop, ensuring 2 columns
+      if (field.length > 0 || row.length > 0) {
+        if (row.length < 2) {
+          row.push(field);
+        }
+        while (row.length < 2) {
+          row.push('');
+        }
+        if (row.length > 2) {
+          row[1] = row.slice(1).join(',');
+          row = row.slice(0, 2);
+        }
+        rows.push(row);
+      }
+      // Remove empty trailing rows
+      return rows.filter(r => r.some(cell => cell.trim() !== ''));
+    }
+
+    // Render table with copy buttons
+    function renderTable(rows) {
+      if (!rows.length) return '<p>No data found.</p>';
+      
+      const headers = rows[0]; // First row as headers
+      const dataRows = rows.slice(1); // Remaining rows as data
+
+      let html = '<table><thead><tr>';
+      // Header
+      headers.forEach(header => {
+        html += `<th>${header.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</th>`;
+      });
+      html += '</tr></thead><tbody>';
+      // Data
+      for (let i = 0; i < dataRows.length; i++) {
+        html += '<tr>';
+        dataRows[i].forEach((cell, cellIdx) => {
+          let cellContent = `<div class="cell-content-wrapper"><span>${cell.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</span>`; 
+          if (cellIdx === 0) { // Add copy button only for the first column
+            cellContent += `<button class="copy-btn" data-row="${i}" data-col="${cellIdx}">Copy</button>
+                            <span class="copied" id="copied-${i}-${cellIdx}" style="display:none;">Copied!</span>`;
+          }
+          cellContent += `</div>`;
+          html += `<td>${cellContent}</td>`;
+        });
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      return html;
+    }
+
+    // Fetch and display CSV
+    async function loadCSV(filename) {
+      const container = document.getElementById('table-container');
+      container.innerHTML = '<p>Loading...</p>';
+      try {
+        const resp = await fetch(csvFiles[filename]);
+        if (!resp.ok) throw new Error('Failed to load CSV');
+        const text = await resp.text();
+        const rows = parseCSV(text);
+        container.innerHTML = renderTable(rows);
+
+        // Add copy event listeners for Column 1 cells
+        document.querySelectorAll('.copy-btn[data-col="0"]').forEach(btn => {
+          btn.onclick = function() {
+            const rowIdx = parseInt(btn.getAttribute('data-row'));
+            const colIdx = parseInt(btn.getAttribute('data-col'));
+            const cellData = rows[rowIdx + 1][colIdx]; // Use rows directly with offset for header
+            navigator.clipboard.writeText(cellData).then(() => {
+              // Show copied message
+              document.querySelectorAll('.copied').forEach(el => el.style.display = 'none');
+              const copiedSpan = document.getElementById(`copied-${rowIdx}-${colIdx}`);
+              if (copiedSpan) {
+                copiedSpan.style.display = 'inline';
+                setTimeout(() => copiedSpan.style.display = 'none', 1200);
+              }
+            });
+          };
+        });
+
+      } catch (e) {
+        container.innerHTML = '<p style="color:red;">Error loading CSV file.</p>';
+      }
+    }
+
+    // Initial load
+    document.getElementById('csv-select').addEventListener('change', function() {
+      loadCSV(this.value);
+    });
+
+    // Load default
+    loadCSV(document.getElementById('csv-select').value);
+  </script>
+</body>
+</html>

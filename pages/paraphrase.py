@@ -289,6 +289,31 @@ st.markdown("""
     ::-webkit-scrollbar-thumb:hover {
         background: #555555;
     }
+
+    /* New styles for metric boxes */
+    .metric-box {
+        background: #111111; /* Darker background than main content boxes */
+        border-left: 4px solid #90EE90; /* Green accent bar on the left */
+        border-radius: 8px; /* Slightly rounded corners */
+        padding: 1rem 1.2rem; /* Ample padding */
+        margin-bottom: 0.75rem; /* Space between metric boxes */
+        color: #ffffff; /* White text for readability */
+        font-family: 'Inter', sans-serif; /* Consistent font */
+        display: flex; /* Use flexbox for alignment */
+        justify-content: space-between; /* Space out content within the box */
+        align-items: center; /* Vertically align content */
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2); /* Subtle shadow for depth */
+    }
+
+    .metric-box small {
+        color: #cccccc; /* Lighter grey for small text */
+        font-size: 0.95rem; /* Slightly larger font for metrics */
+    }
+
+    .metric-value {
+        font-weight: 600; /* Make the metric values stand out */
+        color: #ffffff; /* White color for values */
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -612,14 +637,17 @@ Examples:
                             <strong>Paraphrase:</strong> {para_word_count} words • {para_sentence_count} sentences
                         </small>
                     </div>
-                    <div class="score-box">
-                        <small><strong>BLEU Score:</strong> {bleu_score}</small>
+                    <div class="metric-box">
+                        <small>BLEU Score:</small>
+                        <span class="metric-value">{bleu_score}</span>
                     </div>
-                    <div class="score-box">
-                        <small><strong>Perplexity:</strong> {perplexity_score}</small>
+                    <div class="metric-box">
+                        <small>Perplexity:</small>
+                        <span class="metric-value">{perplexity_score}</span>
                     </div>
-                    <div class="score-box">
-                        <small><strong>Readability Delta:</strong> {readability_delta} (Original: {original_readability}, Paraphrase: {paraphrase_readability})</small>
+                    <div class="metric-box">
+                        <small>Readability Delta (Original: {original_readability}, Paraphrase: {paraphrase_readability}):</small>
+                        <span class="metric-value">{readability_delta}</span>
                     </div>
                     """, unsafe_allow_html=True)
                     
@@ -695,14 +723,17 @@ Examples:
             ref_readability_delta = round(ref_original_readability - ref_paraphrase_readability, 2)
 
             st.markdown(f"""
-            <div class="score-box reference">
-                <small><strong>BLEU Score (Reference):</strong> {ref_bleu_score}</small>
+            <div class="metric-box">
+                <small>BLEU Score (Reference):</small>
+                <span class="metric-value">{ref_bleu_score}</span>
             </div>
-            <div class="score-box reference">
-                <small><strong>Perplexity (Reference):</strong> {ref_perplexity_score}</small>
+            <div class="metric-box">
+                <small>Perplexity (Reference):</small>
+                <span class="metric-value">{ref_perplexity_score}</span>
             </div>
-            <div class="score-box reference">
-                <small><strong>Readability Delta (Reference):</strong> {ref_readability_delta} (Original: {ref_original_readability}, Paraphrase: {ref_paraphrase_readability})</small>
+            <div class="metric-box">
+                <small>Readability Delta (Reference) (Original: {ref_original_readability}, Paraphrase: {ref_paraphrase_readability}):</small>
+                <span class="metric-value">{ref_readability_delta}</span>
             </div>
             """, unsafe_allow_html=True)
         else:
