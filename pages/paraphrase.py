@@ -10,6 +10,7 @@ import os
 import evaluate
 from transformers import AutoTokenizer, AutoModelForCausalLM, MarianMTModel, MarianTokenizer
 import torch
+import requests
 
 # -----------------------------
 # Page Configuration & Custom CSS
@@ -436,6 +437,35 @@ def show_ai_loader(text="Processing with AI"):
     </div>
     """
 
+def submit_feedback():
+    if 'original_text_for_scores' in st.session_state and 'generated_paraphrase_for_scores' in st.session_state:
+        original_text = st.session_state['original_text_for_scores']
+        output_text = st.session_state['generated_paraphrase_for_scores']
+        is_thumbs_up = True if st.session_state.feedback_radio == "👍 Like" else False
+        feedback_text = st.session_state.feedback_text_area
+
+        feedback_payload = {
+            "inputText": original_text,
+            "outputText": output_text,
+            "feedback": {
+                "isThumbsUp": is_thumbs_up,
+                "feedbackText": feedback_text
+            }
+        }
+        try:
+            response = requests.post("http://localhost:5000/api/paraphrase", json=feedback_payload)
+            if response.status_code in [200, 201]:
+                st.success("Feedback submitted successfully!")
+            else:
+                st.error(f"Failed to submit feedback: {response.status_code} - {response.text}")
+        except requests.exceptions.ConnectionError:
+            st.error("Connection error: Could not connect to the feedback API. Please ensure the backend is running.")
+        except Exception as e:
+            st.error(f"An unexpected error occurred: {e}")
+    else:
+        st.warning("Please generate a paraphrase first before submitting feedback.")
+
+
 # -----------------------------
 # Main Application
 # -----------------------------
@@ -457,6 +487,10 @@ def main():
         st.session_state.paraphrased_output_for_translation = ""
     if 'selected_translation_language' not in st.session_state:
         st.session_state.selected_translation_language = "Hindi" # Default translation language changed to Hindi
+    if 'original_text_for_scores' not in st.session_state:
+        st.session_state['original_text_for_scores'] = ""
+    if 'generated_paraphrase_for_scores' not in st.session_state:
+        st.session_state['generated_paraphrase_for_scores'] = ""
 
     # Removed the initial block that checked for model_selector change, as it was interfering
     # with the model name mapping. The model change logic is now handled after the selectbox.
@@ -603,95 +637,137 @@ Examples:
                 
                 paraphrased_output = result[0]['generated_text']
                 
-                # Display the paraphrased output
-                st.markdown(f"""
-                <div class="content-box">
-                    <p style="line-height: 1.6; margin: 0;">{paraphrased_output}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Paraphrase statistics
-                if result:
-                    first_paraphrase = result[0]['generated_text']
-                    para_word_count, para_sentence_count, para_char_count = get_text_stats(first_paraphrase)
-                    original_words = len(user_text.split())
-                    
-                    st.markdown(f"""
-                    <div style="margin-top: 1rem; padding: 1rem; background: #111111; border-radius: 6px; border-left: 4px solid #90EE90;">
-                        <small style="color: #cccccc;">
-                            <strong>Paraphrase:</strong> {para_word_count} words • {para_sentence_count} sentences
-                        </small>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Calculate scores
-                    bleu_score = calculate_bleu(user_text, paraphrased_output)
-                    perplexity_score = calculate_perplexity(paraphrased_output)
-                    original_readability = calculate_readability_scores(user_text)
-                    paraphrase_readability = calculate_readability_scores(paraphrased_output)
-                    readability_delta = round(original_readability - paraphrase_readability, 2)
-
-                    st.markdown(f"""
-                    <div style="margin-top: 1rem; padding: 1rem; background: #111111; border-radius: 6px; border-left: 4px solid #90EE90;">
-                        <small style="color: #cccccc;">
-                            <strong>Paraphrase:</strong> {para_word_count} words • {para_sentence_count} sentences
-                        </small>
-                    </div>
-                    <div class="metric-box">
-                        <small>BLEU Score:</small>
-                        <span class="metric-value">{bleu_score}</span>
-                    </div>
-                    <div class="metric-box">
-                        <small>Perplexity:</small>
-                        <span class="metric-value">{perplexity_score}</span>
-                    </div>
-                    <div class="metric-box">
-                        <small>Readability Delta (Original: {original_readability}, Paraphrase: {paraphrase_readability}):</small>
-                        <span class="metric-value">{readability_delta}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Download button
-                    st.download_button(
-                        "📥 Download Paraphrase",
-                        paraphrased_output,
-                        file_name="ai_paraphrase.txt",
-                        mime="text/plain",
-                        use_container_width=True
-                    )
-
                 # Store generated data in session state for score analysis
-                if paraphrased_output:
-                    st.session_state['generated_paraphrase_for_scores'] = paraphrased_output
-                    st.session_state['original_text_for_scores'] = user_text
-                    st.session_state['paraphrased_output_for_translation'] = paraphrased_output # Ensure this is always set
+                st.session_state['generated_paraphrase_for_scores'] = paraphrased_output
+                st.session_state['original_text_for_scores'] = user_text
+                st.session_state['paraphrased_output_for_translation'] = paraphrased_output # Ensure this is always set
             
             except Exception as e:
                 loader_placeholder.empty()
                 st.error(f"⚠️ Processing error: {str(e)}")
                 # Ensure session state is cleared or updated if an error occurs
                 st.session_state['paraphrased_output_for_translation'] = ""
+                st.session_state['generated_paraphrase_for_scores'] = "" # Clear on error
+                st.session_state['original_text_for_scores'] = "" # Clear on error
                 
         elif generate_button and not user_text.strip():
             st.error("⚠️ Please enter text to paraphrase.")
         
-        else:
-            # Placeholder when no paraphrase is generated
-            st.markdown("""
-            <div class="placeholder-box">
-                <div class="placeholder-content">
-                    <h4 style="color: #666666; margin-bottom: 1rem;">Ready to Generate Paraphrase</h4>
-                    <p style="margin-bottom: 1rem;">Enter your text and click "Generate Paraphrase"</p>
-                    <p style="font-size: 0.9em; margin: 0;">
-                        ✓ Multiple Variants<br>
-                        ✓ Customizable Style<br>
-                        ✓ Instant Processing<br>
-                        ✓ Export Options
-                    </p>
-                </div>
+        # Display paraphrased output and metrics if available in session state
+        if st.session_state['generated_paraphrase_for_scores']:
+            paraphrased_output = st.session_state['generated_paraphrase_for_scores']
+            user_text_original = st.session_state['original_text_for_scores']
+
+            # Display the paraphrased output
+            st.markdown(f"""
+            <div class="content-box">
+                <p style="line-height: 1.6; margin: 0;">{paraphrased_output}</p>
             </div>
             """, unsafe_allow_html=True)
-    
+            
+            # Paraphrase statistics
+            # Recalculate stats based on stored session state
+            para_word_count, para_sentence_count, para_char_count = get_text_stats(paraphrased_output)
+            original_words = len(user_text_original.split())
+            
+            # Calculate scores
+            bleu_score = calculate_bleu(user_text_original, paraphrased_output)
+            perplexity_score = calculate_perplexity(paraphrased_output)
+            original_readability = calculate_readability_scores(user_text_original)
+            paraphrase_readability = calculate_readability_scores(paraphrased_output)
+            readability_delta = round(original_readability - paraphrase_readability, 2)
+
+            # Download button (moved here, kept for consistency even if not active)
+            st.markdown("""
+                <div style="display: flex; justify-content: space-around; margin-top: 1rem; padding: 0.5rem; background: #111111; border-radius: 6px;">
+                    <button style="background: none; border: none; color: #ffffff; font-size: 1.2rem; cursor: pointer;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.56055 2C11.1381 2.00009 12.3211 3.44332 12.0117 4.99023L11.6094 7H13.8438C15.5431 7 16.836 8.52594 16.5566 10.2021L15.876 14.2842C15.6148 15.8513 14.2586 17 12.6699 17H4.5C3.67157 17 3 16.3284 3 15.5V9.23828C3.00013 8.57996 3.4294 7.99838 4.05859 7.80469L5.19824 7.4541L5.33789 7.40723C6.02983 7.15302 6.59327 6.63008 6.89746 5.9541L8.41113 2.58984L8.48047 2.46094C8.66235 2.17643 8.97898 2.00002 9.32324 2H9.56055ZM7.80957 6.36523C7.39486 7.2867 6.62674 7.99897 5.68359 8.3457L5.49219 8.41016L4.35254 8.76074C4.14305 8.82539 4.00013 9.01904 4 9.23828V15.5C4 15.7761 4.22386 16 4.5 16H12.6699C13.7697 16 14.7087 15.2049 14.8896 14.1201L15.5703 10.0381C15.7481 8.97141 14.9251 8 13.8438 8H11C10.8503 8 10.7083 7.9331 10.6133 7.81738C10.5184 7.70164 10.4805 7.54912 10.5098 7.40234L11.0312 4.79395C11.2167 3.86589 10.507 3.00009 9.56055 3H9.32324L7.80957 6.36523Z"></path></svg>
+                    </button>
+                    <button style="background: none; border: none; color: #ffffff; font-size: 1.2rem; cursor: pointer;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12.6699 3C14.2586 3 15.6148 4.14871 15.876 5.71582L16.5566 9.79785C16.836 11.4741 15.5431 13 13.8438 13H11.6094L12.0117 15.0098C12.3211 16.5567 11.1381 17.9999 9.56055 18H9.32324C8.97898 18 8.66235 17.8236 8.48047 17.5391L8.41113 17.4102L6.89746 14.0459C6.59327 13.3699 6.02983 12.847 5.33789 12.5928L5.19824 12.5459L4.05859 12.1953C3.4294 12.0016 3.00013 11.42 3 10.7617V4.5C3 3.67157 3.67157 3 4.5 3H12.6699ZM4.5 4C4.22386 4 4 4.22386 4 4.5V10.7617C4.00013 10.981 4.14305 11.1746 4.35254 11.2393L5.49219 11.5898L5.68359 11.6543C6.62674 12.001 7.39486 12.7133 7.80957 13.6348L9.32324 17H9.56055C10.507 16.9999 11.2167 16.1341 11.0312 15.2061L10.5098 12.5977C10.4805 12.4509 10.5184 12.2984 10.6133 12.1826C10.7083 12.0669 10.8503 12 11 12H13.8438C14.9251 12 15.7481 11.0286 15.5703 9.96191L14.8896 5.87988C14.7087 4.79508 13.7697 4 12.6699 4H4.5Z"></path></svg>
+                    </button>
+                    <button style="background: none; border: none; color: #ffffff; font-size: 1.2rem; cursor: pointer;">
+                        <span>&#x21BB;</span> <!-- Refresh icon -->
+                    </button>
+                    <button style="background: none; border: none; color: #ffffff; font-size: 1.2rem; cursor: pointer;">
+                        <span>&#x2026;</span> <!-- Ellipsis icon -->
+                    </button>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with st.expander("View AI Paraphrase Metrics"):
+                st.markdown(f"""
+                <div style="margin-top: 1rem; padding: 1rem; background: #111111; border-radius: 6px; border-left: 4px solid #90EE90;">
+                    <small style="color: #cccccc;">
+                        <strong>Paraphrase:</strong> {para_word_count} words • {para_sentence_count} sentences
+                    </small>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class="metric-box">
+                    <small>BLEU Score:</small>
+                    <span class="metric-value">{bleu_score}</span>
+                </div>
+                <div class="metric-box">
+                    <small>Perplexity:</small>
+                    <span class="metric-value">{perplexity_score}</span>
+                </div>
+                <div class="metric-box">
+                    <small>Readability Delta (Original: {original_readability}, Paraphrase: {paraphrase_readability}):</small>
+                    <span class="metric-value">{readability_delta}</span>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Feedback Section
+        if st.session_state['generated_paraphrase_for_scores']:
+            st.markdown("""
+                <div style="margin-top: 2rem; padding: 1rem; background: #111111; border-radius: 8px;">
+                    <h4 style="color: #ffffff; margin-bottom: 1rem;">Give Feedback</h4>
+                </div>
+            """, unsafe_allow_html=True)
+
+            feedback_col1, feedback_col2 = st.columns([1, 4])
+            with feedback_col1:
+                like_status = st.radio(
+                    "",
+                    ["👍 Like", "👎 Dislike"],
+                    key="feedback_radio",
+                    index=0,
+                    horizontal=False
+                )
+            with feedback_col2:
+                feedback_text = st.text_area(
+                    "Additional Feedback (Optional)",
+                    key="feedback_text_area",
+                    height=70,
+                    placeholder="e.g., 'The paraphrase changed the meaning slightly.'"
+                )
+            
+            feedback_button = st.button(
+                "Submit Feedback",
+                key="submit_feedback_button",
+                type="secondary",
+                use_container_width=True,
+                on_click=submit_feedback
+            )
+
+        # Placeholder when no paraphrase is generated
+        else:
+            st.markdown("""
+                <div class="placeholder-box">
+                    <div class="placeholder-content">
+                        <h4 style="color: #666666; margin-bottom: 1rem;">Ready to Generate Paraphrase</h4>
+                        <p style="margin-bottom: 1rem;">Enter your text and click "Generate Paraphrase"</p>
+                        <p style="font-size: 0.9em; margin: 0;">
+                            ✓ Multiple Variants<br>
+                            ✓ Customizable Style<br>
+                            ✓ Instant Processing<br>
+                            ✓ Export Options
+                        </p>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
     # Reference Column
     with reference_col:
         st.markdown("""
@@ -722,20 +798,21 @@ Examples:
             ref_paraphrase_readability = calculate_readability_scores(reference_paraphrase)
             ref_readability_delta = round(ref_original_readability - ref_paraphrase_readability, 2)
 
-            st.markdown(f"""
-            <div class="metric-box">
-                <small>BLEU Score (Reference):</small>
-                <span class="metric-value">{ref_bleu_score}</span>
-            </div>
-            <div class="metric-box">
-                <small>Perplexity (Reference):</small>
-                <span class="metric-value">{ref_perplexity_score}</span>
-            </div>
-            <div class="metric-box">
-                <small>Readability Delta (Reference) (Original: {ref_original_readability}, Paraphrase: {ref_paraphrase_readability}):</small>
-                <span class="metric-value">{ref_readability_delta}</span>
-            </div>
-            """, unsafe_allow_html=True)
+            with st.expander("View Reference Paraphrase Metrics"):
+                st.markdown(f"""
+                <div class="metric-box">
+                    <small>BLEU Score (Reference):</small>
+                    <span class="metric-value">{ref_bleu_score}</span>
+                </div>
+                <div class="metric-box">
+                    <small>Perplexity (Reference):</small>
+                    <span class="metric-value">{ref_perplexity_score}</span>
+                </div>
+                <div class="metric-box">
+                    <small>Readability Delta (Reference) (Original: {ref_original_readability}, Paraphrase: {ref_paraphrase_readability}):</small>
+                    <span class="metric-value">{ref_readability_delta}</span>
+                </div>
+                """, unsafe_allow_html=True)
         else:
             st.markdown("""
                 <div class="placeholder-box">

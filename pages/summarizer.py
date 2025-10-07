@@ -224,17 +224,17 @@ st.markdown("""
     }
 
     .score-box {
-        background: #1a1a2e; /* Darker background */
-        border: 1px solid #0f3460; /* Matching border */
-        border-left: 5px solid #00c49a; /* Vibrant left border for generated scores */
-        border-radius: 10px;
-        padding: 1rem 1.2rem;
-        margin-top: 0.75rem;
-        color: #e0e0e0; /* Lighter text for contrast */
-        font-size: 1em;
-        display: flex;
-        align-items: center;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+        background: #111111; /* Darker background than main content boxes */
+        border-left: 4px solid #90EE90; /* Green accent bar on the left */
+        border-radius: 8px; /* Slightly rounded corners */
+        padding: 1rem 1.2rem; /* Ample padding */
+        margin-top: 0.75rem; /* Space between metric boxes */
+        color: #ffffff; /* White text for readability */
+        font-family: 'Inter', sans-serif; /* Consistent font */
+        display: flex; /* Use flexbox for alignment */
+        justify-content: space-between; /* Space out content within the box */
+        align-items: center; /* Vertically align content */
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2); /* Subtle shadow for depth */
         transition: all 0.2s ease-in-out;
     }
 
@@ -243,8 +243,13 @@ st.markdown("""
         box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); /* Enhanced shadow on hover */
     }
 
+    .score-box small {
+        color: #cccccc; /* Lighter grey for small text */
+        font-size: 0.95rem; /* Slightly larger font for metrics */
+    }
+
     .score-box strong {
-        color: #00c49a; /* Highlight score labels */
+        color: #ffffff; /* White color for values */
     }
 
     .score-box.reference {
@@ -502,26 +507,27 @@ The AI will analyze your content and create a concise summary.""",
             word_count, sentence_count, char_count = get_text_stats(text_input)
             reading_time = calculate_reading_time(text_input)
             
-            st.markdown(f"""
-            <div style="margin-top: 1rem; padding: 1rem; background: #000000; border-radius: 6px;">
-                <small style="color: #ffffff;">
-                    <strong>Stats:</strong> {word_count:,} words • {sentence_count} sentences • {reading_time} min read
-                </small>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Calculate and display metrics for the input text
-            input_perplexity = calculate_perplexity(text_input)
-            input_readability = calculate_readability_scores(text_input)
+            with st.expander("View Input Text Metrics"):
+                st.markdown(f"""
+                <div style="margin-top: 1rem; padding: 1rem; background: #000000; border-radius: 6px;">
+                    <small style="color: #ffffff;">
+                        <strong>Stats:</strong> {word_count:,} words • {sentence_count} sentences • {reading_time} min read
+                    </small>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Calculate and display metrics for the input text
+                input_perplexity = calculate_perplexity(text_input)
+                input_readability = calculate_readability_scores(text_input)
 
-            st.markdown(f"""
-            <div class="score-box">
-                <span class="score-icon">🧠</span> <small><strong>Perplexity (Input):</strong> {input_perplexity}</small>
-            </div>
-            <div class="score-box">
-                <span class="score-icon">🧠</span> <small><strong>Readability (Input):</strong> {input_readability}</small>
-            </div>
-            """, unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class="score-box">
+                    <span class="score-icon">🧠</span> <small><strong>Perplexity (Input):</strong> {input_perplexity}</small>
+                </div>
+                <div class="score-box">
+                    <span class="score-icon">🧠</span> <small><strong>Readability (Input):</strong> {input_readability}</small>
+                </div>
+                """, unsafe_allow_html=True)
     
     # Summary Column
     with summary_col:
@@ -563,32 +569,41 @@ The AI will analyze your content and create a concise summary.""",
                         original_readability = calculate_readability_scores(text_input)
                         summary_readability = calculate_readability_scores(summary)
                         readability_delta = round(original_readability - summary_readability, 2)
-                        
-                        st.markdown(f"""
-                        <div style="margin-top: 1rem; padding: 1rem; background: #000000; border-radius: 6px; border-left: 4px solid #28a745;">
-                            <small style="color: #ffffff;">
-                                <strong>Summary:</strong> {summary_stats[0]} words • {compression}% compression • Model: {selected_model}
-                            </small>
-                        </div>
-                        <div class="score-box">
-                            <span class="score-icon">📊</span> <small><strong>BLEU Score:</strong> {bleu_score}</small>
-                        </div>
-                        <div class="score-box">
-                            <span class="score-icon">🧠</span> <small><strong>Perplexity:</strong> {perplexity_score}</small>
-                        </div>
-                        <div class="score-box">
-                            <span class="score-icon">🧠</span> <small><strong>Readability Delta:</strong> {readability_delta} (Original: {original_readability}, Summary: {summary_readability})</small>
+
+                        st.markdown("""
+                        <div style="display: flex; justify-content: space-around; margin-top: 1rem; padding: 0.5rem; background: #111111; border-radius: 6px;">
+                            <button style="background: none; border: none; color: #ffffff; font-size: 1.2rem; cursor: pointer;">
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.56055 2C11.1381 2.00009 12.3211 3.44332 12.0117 4.99023L11.6094 7H13.8438C15.5431 7 16.836 8.52594 16.5566 10.2021L15.876 14.2842C15.6148 15.8513 14.2586 17 12.6699 17H4.5C3.67157 17 3 16.3284 3 15.5V9.23828C3.00013 8.57996 3.4294 7.99838 4.05859 7.80469L5.19824 7.4541L5.33789 7.40723C6.02983 7.15302 6.59327 6.63008 6.89746 5.9541L8.41113 2.58984L8.48047 2.46094C8.66235 2.17643 8.97898 2.00002 9.32324 2H9.56055ZM7.80957 6.36523C7.39486 7.2867 6.62674 7.99897 5.68359 8.3457L5.49219 8.41016L4.35254 8.76074C4.14305 8.82539 4.00013 9.01904 4 9.23828V15.5C4 15.7761 4.22386 16 4.5 16H12.6699C13.7697 16 14.7087 15.2049 14.8896 14.1201L15.5703 10.0381C15.7481 8.97141 14.9251 8 13.8438 8H11C10.8503 8 10.7083 7.9331 10.6133 7.81738C10.5184 7.70164 10.4805 7.54912 10.5098 7.40234L11.0312 4.79395C11.2167 3.86589 10.507 3.00009 9.56055 3H9.32324L7.80957 6.36523Z"></path></svg>
+                            </button>
+                            <button style="background: none; border: none; color: #ffffff; font-size: 1.2rem; cursor: pointer;">
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12.6699 3C14.2586 3 15.6148 4.14871 15.876 5.71582L16.5566 9.79785C16.836 11.4741 15.5431 13 13.8438 13H11.6094L12.0117 15.0098C12.3211 16.5567 11.1381 17.9999 9.56055 18H9.32324C8.97898 18 8.66235 17.8236 8.48047 17.5391L8.41113 17.4102L6.89746 14.0459C6.59327 13.3699 6.02983 12.847 5.33789 12.5928L5.19824 12.5459L4.05859 12.1953C3.4294 12.0016 3.00013 11.42 3 10.7617V4.5C3 3.67157 3.67157 3 4.5 3H12.6699ZM4.5 4C4.22386 4 4 4.22386 4 4.5V10.7617C4.00013 10.981 4.14305 11.1746 4.35254 11.2393L5.49219 11.5898L5.68359 11.6543C6.62674 12.001 7.39486 12.7133 7.80957 13.6348L9.32324 17H9.56055C10.507 16.9999 11.2167 16.1341 11.0312 15.2061L10.5098 12.5977C10.4805 12.4509 10.5184 12.2984 10.6133 12.1826C10.7083 12.0669 10.8503 12 11 12H13.8438C14.9251 12 15.7481 11.0286 15.5703 9.96191L14.8896 5.87988C14.7087 4.79508 13.7697 4 12.6699 4H4.5Z"></path></svg>
+                            </button>
+                            <button style="background: none; border: none; color: #ffffff; font-size: 1.2rem; cursor: pointer;">
+                                <span>&#x21BB;</span> <!-- Refresh icon -->
+                            </button>
+                            <button style="background: none; border: none; color: #ffffff; font-size: 1.2rem; cursor: pointer;">
+                                <span>&#x2026;</span> <!-- Ellipsis icon -->
+                            </button>
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # Download button
-                        st.download_button(
-                            "📥 Download Summary",
-                            summary,
-                            file_name="ai_summary.txt",
-                            mime="text/plain",
-                            use_container_width=True
-                        )
+                        with st.expander("View Summary Metrics"):
+                            st.markdown(f"""
+                            <div style="margin-top: 1rem; padding: 1rem; background: #000000; border-radius: 6px; border-left: 4px solid #28a745;">
+                                <small style="color: #ffffff;">
+                                    <strong>Summary:</strong> {summary_stats[0]} words • {compression}% compression • Model: {selected_model}
+                                </small>
+                            </div>
+                            <div class="score-box">
+                                <span class="score-icon">📊</span> <small><strong>BLEU Score:</strong> {bleu_score}</small>
+                            </div>
+                            <div class="score-box">
+                                <span class="score-icon">🧠</span> <small><strong>Perplexity:</strong> {perplexity_score}</small>
+                            </div>
+                            <div class="score-box">
+                                <span class="score-icon">🧠</span> <small><strong>Readability Delta:</strong> {readability_delta} (Original: {original_readability}, Summary: {summary_readability})</small>
+                            </div>
+                            """, unsafe_allow_html=True)
                 
                 except Exception as e:
                     st.error("⚠️ Unable to process text. Please try again.")
@@ -641,17 +656,18 @@ The AI will analyze your content and create a concise summary.""",
             ref_summary_readability = calculate_readability_scores(reference_summary)
             ref_readability_delta = round(ref_original_readability - ref_summary_readability, 2)
             
-            st.markdown(f"""
-            <div class="score-box reference">
-                <span class="score-icon">📊</span> <small><strong>BLEU Score (Reference):</strong> {ref_bleu_score}</small>
-            </div>
-            <div class="score-box reference">
-                <span class="score-icon">🧠</span> <small><strong>Perplexity (Reference):</strong> {ref_perplexity_score}</small>
-            </div>
-            <div class="score-box reference">
-                <span class="score-icon">🧠</span> <small><strong>Readability Delta (Reference):</strong> {ref_readability_delta} (Original: {ref_original_readability}, Summary: {ref_summary_readability})</small>
-            </div>
-            """, unsafe_allow_html=True)
+            with st.expander("View Reference Summary Metrics"):
+                st.markdown(f"""
+                <div class="score-box reference">
+                    <span class="score-icon">📊</span> <small><strong>BLEU Score (Reference):</strong> {ref_bleu_score}</small>
+                </div>
+                <div class="score-box reference">
+                    <span class="score-icon">🧠</span> <small><strong>Perplexity (Reference):</strong> {ref_perplexity_score}</small>
+                </div>
+                <div class="score-box reference">
+                    <span class="score-icon">🧠</span> <small><strong>Readability Delta (Reference):</strong> {ref_readability_delta} (Original: {ref_original_readability}, Summary: {ref_summary_readability})</small>
+                </div>
+                """, unsafe_allow_html=True)
         else:
             st.markdown("""
                 <div class="placeholder-box">
