@@ -1,5 +1,6 @@
 import streamlit as st
 from transformers import pipeline
+from backend import db_connection # Import db_connection
 
 # -----------------------------
 # Summarizer model
@@ -15,22 +16,22 @@ summarizer = load_summarizer()
 # -----------------------------
 def signup():
     st.title("📝 Signup Page")
+    # name = st.text_input("Enter your Name") # Removed name input
+    email = st.text_input("Enter your Email")
     username = st.text_input("Choose a Username")
     password = st.text_input("Choose a Password", type="password")
 
     if st.button("Signup"):
-        if username and password:
-            if "users" not in st.session_state:
-                st.session_state["users"] = {}
-            if username in st.session_state["users"]:
-                st.error("⚠️ Username already exists. Please choose another.")
-            else:
-                st.session_state["users"][username] = password
+        if email and username and password: # Removed 'name'
+            # Use db_connection to create user
+            if db_connection.create_user(email, username, password): # Removed 'name' argument
                 st.success("✅ Account created! Please log in now.")
                 st.session_state.page = "login"
                 st.rerun()
+            else:
+                st.error("⚠️ An account with this username or email already exists. Please choose another.")
         else:
-            st.error("⚠️ Please enter both username and password.")
+            st.error("⚠️ Please fill in all fields.")
 
 def login():
     st.title("🔒 Login Page")
@@ -38,14 +39,15 @@ def login():
     password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if "users" in st.session_state and username in st.session_state["users"]:
-            if st.session_state["users"][username] == password:
-                st.session_state.logged_in = True
-                st.success("✅ Login successful! Redirecting...")
-                st.session_state.page = "summarizer"
-                st.rerun()
-            else:
-                st.error("❌ Invalid password")
+        # Use db_connection to validate user
+        user = db_connection.validate_user(username, password)
+        if user:
+            st.session_state.logged_in = True
+            st.session_state.username = user['username'] # Store username in session
+            st.session_state.user_role = user['role'] # Store user role in session
+            st.success("✅ Login successful! Redirecting...")
+            st.session_state.page = "dashboard"
+            st.rerun()
         else:
             st.error("❌ Invalid username or password")
 
@@ -68,7 +70,7 @@ def summarizer_page():
 
     if st.button("Logout"):
         st.session_state.logged_in = False
-        st.session_state.page = "login"
+        st.session_state.page = "login" # Ensure it redirects to login after logout
         st.rerun()
 
 # -----------------------------
@@ -84,6 +86,16 @@ def main():
         signup()
     elif st.session_state.page == "login":
         login()
+    elif st.session_state.page == "dashboard" and st.session_state.logged_in: # New dashboard page
+        st.title("Welcome to Dashboard!") # Placeholder for dashboard content
+        # In a real app, you'd import and call a dashboard function here
+        if st.button("Go to Summarizer"): # Example navigation to summarizer
+            st.session_state.page = "summarizer"
+            st.rerun()
+        if st.button("Logout"): # Logout from dashboard
+            st.session_state.logged_in = False
+            st.session_state.page = "login"
+            st.rerun()
     elif st.session_state.page == "summarizer" and st.session_state.logged_in:
         summarizer_page()
     else:
