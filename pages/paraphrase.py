@@ -257,6 +257,12 @@ st.markdown("""
         border-color: #666666;
         outline: none;
     }
+
+    /* Specific style for feedback text area */
+    textarea[aria-label="Additional Feedback (Optional)"] {
+        height: 20px !important; /* Force height for feedback text area */
+        min-height: 20px !important;
+    }
     
     /* Footer */
     .footer {
@@ -441,7 +447,7 @@ def submit_feedback():
     if 'original_text_for_scores' in st.session_state and 'generated_paraphrase_for_scores' in st.session_state:
         original_text = st.session_state['original_text_for_scores']
         output_text = st.session_state['generated_paraphrase_for_scores']
-        is_thumbs_up = True if st.session_state.feedback_radio == "👍 Like" else False
+        is_thumbs_up = True if st.session_state.feedback_radio == "👍" else False
         feedback_text = st.session_state.feedback_text_area
 
         feedback_payload = {
@@ -551,8 +557,6 @@ def main():
     # The generate button is placed in the input_col below.
     # The previous code in control_col2 for generate_button is commented out as it was a duplicate.
     
-    st.markdown("<br>", unsafe_allow_html=True)
-    
     # Main four-column layout
     input_col, paraphrase_col, reference_col, translate_col = st.columns([1, 1, 1, 1])
     
@@ -567,7 +571,6 @@ def main():
         user_text = st.text_area(
             "", 
             value="", 
-            height=300,
             placeholder="""Enter your text here for paraphrasing...
 
 Examples:
@@ -677,8 +680,8 @@ Examples:
             paraphrase_readability = calculate_readability_scores(paraphrased_output)
             readability_delta = round(original_readability - paraphrase_readability, 2)
 
-            # Download button (moved here, kept for consistency even if not active)
-            st.markdown("""
+            with st.expander("View AI Paraphrase Metrics"):
+                st.markdown(f"""
                 <div style="display: flex; justify-content: space-around; margin-top: 1rem; padding: 0.5rem; background: #111111; border-radius: 6px;">
                     <button style="background: none; border: none; color: #ffffff; font-size: 1.2rem; cursor: pointer;">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9.56055 2C11.1381 2.00009 12.3211 3.44332 12.0117 4.99023L11.6094 7H13.8438C15.5431 7 16.836 8.52594 16.5566 10.2021L15.876 14.2842C15.6148 15.8513 14.2586 17 12.6699 17H4.5C3.67157 17 3 16.3284 3 15.5V9.23828C3.00013 8.57996 3.4294 7.99838 4.05859 7.80469L5.19824 7.4541L5.33789 7.40723C6.02983 7.15302 6.59327 6.63008 6.89746 5.9541L8.41113 2.58984L8.48047 2.46094C8.66235 2.17643 8.97898 2.00002 9.32324 2H9.56055ZM7.80957 6.36523C7.39486 7.2867 6.62674 7.99897 5.68359 8.3457L5.49219 8.41016L4.35254 8.76074C4.14305 8.82539 4.00013 9.01904 4 9.23828V15.5C4 15.7761 4.22386 16 4.5 16H12.6699C13.7697 16 14.7087 15.2049 14.8896 14.1201L15.5703 10.0381C15.7481 8.97141 14.9251 8 13.8438 8H11C10.8503 8 10.7083 7.9331 10.6133 7.81738C10.5184 7.70164 10.4805 7.54912 10.5098 7.40234L11.0312 4.79395C11.2167 3.86589 10.507 3.00009 9.56055 3H9.32324L7.80957 6.36523Z"></path></svg>
@@ -693,11 +696,8 @@ Examples:
                         <span>&#x2026;</span> <!-- Ellipsis icon -->
                     </button>
                 </div>
-                """, unsafe_allow_html=True)
-            
-            with st.expander("View AI Paraphrase Metrics"):
-                st.markdown(f"""
-                <div style="margin-top: 1rem; padding: 1rem; background: #111111; border-radius: 6px; border-left: 4px solid #90EE90;">
+                
+                <div style="margin-top: 1rem; padding: 0.5rem; background: #111111; border-radius: 6px;">
                     <small style="color: #cccccc;">
                         <strong>Paraphrase:</strong> {para_word_count} words • {para_sentence_count} sentences
                     </small>
@@ -717,33 +717,23 @@ Examples:
                     <span class="metric-value">{readability_delta}</span>
                 </div>
                 """, unsafe_allow_html=True)
-        
-        # Feedback Section
-        if st.session_state['generated_paraphrase_for_scores']:
-            st.markdown("""
-                <div style="margin-top: 2rem; padding: 1rem; background: #111111; border-radius: 8px;">
-                    <h4 style="color: #ffffff; margin-bottom: 1rem;">Give Feedback</h4>
-                </div>
-            """, unsafe_allow_html=True)
 
-            feedback_col1, feedback_col2 = st.columns([1, 4])
-            with feedback_col1:
-                like_status = st.radio(
-                    "",
-                    ["👍 Like", "👎 Dislike"],
-                    key="feedback_radio",
-                    index=0,
-                    horizontal=False
-                )
-            with feedback_col2:
-                feedback_text = st.text_area(
-                    "Additional Feedback (Optional)",
-                    key="feedback_text_area",
-                    height=70,
-                    placeholder="e.g., 'The paraphrase changed the meaning slightly.'"
-                )
+            # Horizontal radio buttons above the text area
+            st.radio(
+                "",
+                ["👍", "👎"],
+                key="feedback_radio",
+                index=0,
+                horizontal=True # Set to horizontal
+            )
             
-            feedback_button = st.button(
+            st.text_area(
+                "Additional Feedback (Optional)",
+                key="feedback_text_area",
+                placeholder="e.g., 'The paraphrase changed the meaning slightly.'"
+            )
+            
+            st.button(
                 "Submit Feedback",
                 key="submit_feedback_button",
                 type="secondary",
